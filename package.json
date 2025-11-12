@@ -18,7 +18,7 @@
     "coverage:report": "nyc --reporter=lcov --reporter=text npm run test"
   },
   "dependencies": {
-    "@companieshouse/node-session-handler": "~5.2.6",
+    "@companieshouse/node-session-handler": "git+https://github.com/companieshouse/node-session-handler.git#feature/CC-2962-investigate-undefined-log",
     "@companieshouse/structured-logging-node": "~2.0.4",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",

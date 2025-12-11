@@ -146,7 +146,7 @@ const csrfFilter = (options: CsrfOptions): RequestHandler => {
 
                 // Token most likely to be in the request body so prioritise over headers
                 // it is also the hardest for an attacker to modify
-                const csrfTokenInRequest = req.body[parameterName] || req.headers[headerName]
+                const csrfTokenInRequest = req?.body?.[parameterName] || req.headers[headerName]
 
                 if (csrfTokenInRequest !== sessionCsrfToken) {
                     logger.error('Possible csrf attack mitigated')

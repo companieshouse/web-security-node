@@ -1,9 +1,9 @@
-import '@companieshouse/node-session-handler'
-import {NextFunction, Request, RequestHandler, Response} from 'express'
-import {authMiddlewareHelper} from './private-helpers/authMiddlewareHelper'
+import "@companieshouse/node-session-handler";
+import {NextFunction, Request, RequestHandler, Response} from "express";
+import {authMiddlewareHelper} from "./private-helpers/authMiddlewareHelper";
 
-export * from './csrf-protection'
-export * from './scopes-permissions'
+export * from "./csrf-protection";
+export * from "./scopes-permissions";
 
 export interface AuthOptions {
   returnUrl: string
@@ -14,10 +14,10 @@ export interface AuthOptions {
 }
 
 export const authMiddleware = (options: AuthOptions): RequestHandler => (
-  req: Request,
-  res: Response,
-  next: NextFunction
+    req: Request,
+    res: Response,
+    next: NextFunction
 ) => {
 
-  return authMiddlewareHelper(options)(req, res, next)
-}
+    return authMiddlewareHelper(options)(req, res, next);
+};

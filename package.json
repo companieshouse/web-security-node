@@ -11,16 +11,18 @@
     "build": "rm -rf ./dist; tsc",
     "lint": "eslint 'src/*.ts' 'src/**/*.ts' 'test/**/*.test.ts'",
     "lint:fix": "eslint 'src/*.ts' 'src/**/*.ts' 'test/**/*.test.ts' --fix",
-    "sonarqube": "sonar-scanner",
     "prepublishOnly": "[ ! -d node_modules ] && npm install; tsc",
     "postpublish": "rm -rf lib",
     "test:coverage": "nyc --check-coverage --reporter=text-summary npm run test",
-    "coverage:report": "nyc --reporter=lcov --reporter=text npm run test"
+    "coverage:report": "nyc --reporter=lcov --reporter=text npm run test",
+    "sonarqube-base-branch": "sonar-scanner",
+    "sonarqube-pull-request": "sonar-scanner -D sonar.pullrequest.base=master",
+    "sonarqube": "branch=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD); if [[ $branch == \"HEAD\" ]]; then echo $branch && npm run sonarqube-base-branch; else echo $branch && npm run sonarqube-pull-request; fi;"
+
   },
   "dependencies": {
     "@companieshouse/node-session-handler": "~5.2.10",
     "@companieshouse/structured-logging-node": "~2.0.7",
-    "@companieshouse/web-security-node": "^4.4.14",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",
     "uuid": "^13.0.0"
@@ -29,6 +31,7 @@
     "@types/chai": "^5.2.3",
     "@types/express": "^5.0.6",
     "@types/ioredis": "^4.28.10",
+    "@types/mocha": "^7.0.2",
     "@types/sinon": "^21.0.0",
     "@types/uuid": "^11.0.0",
     "@typescript-eslint/eslint-plugin": "^8.49.0",
@@ -42,6 +45,7 @@
     "sonarqube-scanner": "^3.5.0",
     "ts-mockito": "^2.5.0",
     "ts-node": "^10.8.1",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3"
   },
   "overrides": {

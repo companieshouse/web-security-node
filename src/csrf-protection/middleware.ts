@@ -87,9 +87,8 @@ export const CsrfProtectionMiddleware = (csrfOptions: CsrfOptions): RequestHandl
     return expressAsyncHandler(csrfFilter(csrfOptions));
 };
 
-const csrfFilter = (options: CsrfOptions): RequestHandler => {
-    return async (req: Request, res: Response, next: NextFunction): Promise<any> => {
-        const appName = "CH Web Security Node";
+const csrfFilter = (options: CsrfOptions) => async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const appName = "CH Web Security Node";
 
         // When disabled just continue chain
         if (!options.enabled) {
@@ -184,5 +183,4 @@ const csrfFilter = (options: CsrfOptions): RequestHandler => {
             logger.errorRequest(req, `Could not handle CSRF validation: ${err}`);
             return next(err);
         }
-    };
 };

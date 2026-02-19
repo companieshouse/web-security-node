@@ -21,7 +21,6 @@
     "sonarqube-base-branch": "sonar-scanner",
     "sonarqube-pull-request": "sonar-scanner -D sonar.pullrequest.base=master",
     "sonarqube": "branch=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD); if [[ $branch == \"HEAD\" ]]; then echo $branch && npm run sonarqube-base-branch; else echo $branch && npm run sonarqube-pull-request; fi;"
-
   },
   "dependencies": {
     "@companieshouse/node-session-handler": "~5.2.10",
@@ -53,9 +52,11 @@
   },
   "overrides": {
     "diff": "^8.0.3",
+    "glob-parent": "^6.0.2",
     "js-yaml": "^4.1.1",
     "qs": "^6.15",
-    "lodash": "^4.17.23"
+    "lodash": "^4.17.23",
+    "minimatch": "^10.2.1"
   },
   "files": [
     "components",

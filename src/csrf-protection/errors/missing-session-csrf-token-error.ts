@@ -1,4 +1,4 @@
-import { CsrfError } from './csrf-error'
+import { CsrfError } from "./csrf-error";
 
 /**
  * An error thrown when CSRF token is not held within the Session when

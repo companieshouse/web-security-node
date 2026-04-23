@@ -72,10 +72,10 @@ token. This implements a
     import express from "express";
     import cookieParser from 'cookie-parser';
     import Redis from 'ioredis';
-    
+
 
     const app = express();
-    
+
     // apply other middlewares
 
     app.use(cookieParser());
@@ -102,7 +102,7 @@ token. This implements a
     // Recommended to use the EnsureSessionCookiePresentMiddleware from
     // `node-session-handler` too - see subsequent note
     app.use(EnsureSessionCookiePresentMiddleware(cookieConfig))
-    
+
     // It is important that CSRF Protection follows the Sesion and urlencoded
     // Middlewares, maybe put at end of the middleware chain (before
     // controllers)
@@ -195,7 +195,7 @@ token. This implements a
 
     const csrfErrorHandler = (err: CsrfError | Error, _: Request,
       res: Response, next: NextFunction) => {
-      
+
       // handle non-CSRF Errors immediately
       if (!(err instanceof CsrfError)) {
         next(err);
@@ -289,4 +289,4 @@ session to match the request's Token against.
 
 For all parts of the API that this library provides, put the code in directories that have an `index.ts` file so that clients can import the code `from "@companieshouse/web-security-node"` .
 
-For code private to this library, add these files in the `src/private-helpers` directory (these need to be imported within this project using the filename with path).
+For code private to this library, add these files in the `src/private-helpers` directory (these need to be imported within this project using the filename with path)

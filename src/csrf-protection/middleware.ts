@@ -4,7 +4,6 @@ import { Cookie } from "@companieshouse/node-session-handler/lib/session/model/C
 import { createLogger } from "@companieshouse/structured-logging-node";
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import expressAsyncHandler from "express-async-handler";
-import { v4 as uuidv4 } from "uuid";
 import {
     CsrfTokensMismatchError,
     MissingCsrfSessionToken,
@@ -186,3 +185,6 @@ const csrfFilter = (options: CsrfOptions): RequestHandler => {
         }
     };
 };
+
+// Use CommonJS require for uuid to ensure compatibility
+const { v4: uuidv4 } = require("uuid");

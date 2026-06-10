@@ -27,7 +27,7 @@
     "@companieshouse/structured-logging-node": "~2.0.13",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",
-    "uuid": "^14.0.0"
+    "uuid": "^11.0.0"
   },
   "devDependencies": {
     "@types/chai": "^4.2.11",
@@ -58,7 +58,7 @@
     "minimatch": "10.2.5",
     "qs": "^6.15",
     "serialize-javascript": "^7.0.5",
-    "uuid": "^14.0.0"
+    "uuid": "^11.0.0"
   },
   "files": [
     "components",

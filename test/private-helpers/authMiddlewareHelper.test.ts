@@ -1,4 +1,5 @@
 import { Response } from "express";
+import crypto from "crypto";
 import sinon from "sinon";
 import { instance, mock, when } from "ts-mockito";
 import { assert } from "chai";
@@ -126,6 +127,199 @@ describe("Test tokenPermissions conditionals in authMiddleware", () => {
         authMiddlewareHelper(opts, testRequestScopeAndPermissions)(mockRequest, mockResponse, mockNext);
         assert(redirectStub.calledOnce);
         assert(mockNext.notCalled);
+    });
+
+});
+
+describe("IP extraction from X-Forwarded-For", () => {
+
+    const mockUserId = "sA==";
+
+    let redirectStub: sinon.SinonStub;
+    let opts: AuthOptions;
+    let mockResponse: Response;
+    let mockNext: sinon.SinonStub;
+
+    // The signature is SHA1(userAgent + ip + COOKIE_SECRET).
+    // In tests: user-agent header is absent (→ "" per the null-coalescing fix matching Java),
+    // COOKIE_SECRET env var is not set (→ undefined in template literal → "undefined").
+    // So the hash input is `${ip}undefined`.
+    const signatureForIp = (ip: string): string =>
+        crypto.createHash("sha1").update(`${ip}undefined`, "utf8").digest("hex");
+
+    beforeEach(() => {
+        redirectStub = sinon.stub();
+        opts = { returnUrl: "origin", chsWebUrl: "accounts" };
+        mockResponse = generateResponse();
+        mockResponse.redirect = redirectStub;
+        mockNext = sinon.stub();
+    });
+
+    it("uses rightmost public IP when X-Forwarded-For contains a spoofed leftmost entry", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "5.5.5.5, 1.2.3.4, 10.0.0.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("uses the single IP when X-Forwarded-For contains only one entry", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "1.2.3.4";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("falls back to leftmost IP when all X-Forwarded-For entries are private", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("10.0.0.1") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "10.0.0.1, 192.168.1.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("does not use the leftmost IP when a rightmost public IP is present (confirms no regression to old behaviour)", () => {
+        const authedSession = mock(Session);
+        // Store a signature computed from the leftmost (spoofed) IP — this should NOT match
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("5.5.5.5") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "5.5.5.5, 1.2.3.4, 10.0.0.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnce);
+        assert(mockNext.notCalled);
+    });
+
+    it("treats 172.16–31.x.x addresses as private", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "1.2.3.4, 172.16.0.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("treats ::1 (IPv6 loopback) as private and falls back to leftmost", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("10.0.0.1") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "10.0.0.1, ::1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("treats IPv4-mapped IPv6 private addresses (::ffff:10.x.x.x) as private", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "1.2.3.4, ::ffff:10.0.0.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("handles X-Forwarded-For supplied as an array (multiple header instances)", () => {
+        const authedSession = mock(Session);
+        // Express joins multiple instances of the same header into an array.
+        // Array.toString() joins with commas, producing the same format as a single header.
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string[]>)["x-forwarded-for"] = ["5.5.5.5", "1.2.3.4, 10.0.0.1"] as any;
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("ignores empty/whitespace-only entries in X-Forwarded-For", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = " , 1.2.3.4, 10.0.0.1";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("falls back to socket.remoteAddress when X-Forwarded-For contains only whitespace/empty entries", () => {
+        const authedSession = mock(Session);
+        // All entries are stripped by the empty-string filter; falls back to socket.remoteAddress ?? ""
+        // In tests there is no socket, so the signature is sha1("undefined") — the default ClientSig.
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "  ,  ,  ";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("uses X-REAL-IP when X-Forwarded-For is absent (matches web-security-java fallback)", () => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({
+            ...instance(authedSession),
+            data: { [SessionKey.ClientSig]: signatureForIp("1.2.3.4") }
+        });
+        (mockRequest.headers as Record<string, string>)["x-real-ip"] = "1.2.3.4";
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
     });
 
 });

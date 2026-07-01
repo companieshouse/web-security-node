@@ -109,22 +109,79 @@ function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo):
 
 const computeSignatureFromRequest = (req: Request): string => {
     const clientIp = getClientIp(req);
-    const hashTarget = `${req.headers["user-agent"]}${clientIp}${process.env?.COOKIE_SECRET}`;
+    // Absent User-Agent coerces to "" to match web-security-java HijackFilter.getUserAgent()
+    const userAgent = req.headers["user-agent"] ?? "";
+    const hashTarget = `${userAgent}${clientIp}${process.env?.COOKIE_SECRET}`;
     return crypto
         .createHash("sha1")
         .update(hashTarget, "utf8")
         .digest("hex");
 };
 
-const getClientIp = (req: Request) => {
-    let ipStr = "";
-    if (!req.headers["x-forwarded-for"]) {
-        return req.socket?.remoteAddress;
-    } else {
-        ipStr = Array.isArray(req.headers["x-forwarded-for"]) ? req.headers["x-forwarded-for"].toString() : req.headers["x-forwarded-for"];
-        return ipStr.split(",").shift();
-    }
+// Equivalent to Java's InetAddress.isSiteLocalAddress() + the explicit startsWith("127.") check
+// in web-security-java HijackFilter.parseIpFromXForwardedFor.
+//
+// Java uses InetAddress.isSiteLocalAddress() which covers:
+//   - RFC 1918 IPv4:        10/8, 172.16/12, 192.168/16  → entries [0–2] below
+//   - IPv6 unique local:    fc00::/7                      → entry [7] below
+// Java adds an explicit startsWith("127.") check for IPv4 loopback → entry [3] below.
+//
+// The following entries go further than Java (Java treats these as public):
+//   - ::1 (IPv6 loopback)                  → entry [4]
+//   - ::ffff: IPv4-mapped private addresses → entry [5]
+//   - fe80::/10 IPv6 link-local            → entry [6]
+// These cannot appear in real X-Forwarded-For headers in CHS infrastructure, so the
+// difference has no practical effect on signature compatibility.
+//
+// CGNAT (100.64.0.0/10) is intentionally excluded — it is not covered by Java's
+// isSiteLocalAddress() and does not appear in X-Forwarded-For in the CHS topology.
+const privateRanges = [
+    // RFC 1918 IPv4 — equivalent to Java isSiteLocalAddress() for IPv4
+    /^10\./,
+    /^172\.(1[6-9]|2\d|3[01])\./,
+    /^192\.168\./,
+    // IPv4 loopback — equivalent to Java's explicit startsWith("127.") check
+    /^127\./,
+    // IPv6 loopback — beyond Java; ::1 is treated as public by isSiteLocalAddress()
+    /^::1$/,
+    // IPv4-mapped IPv6 — beyond Java; checks the embedded IPv4 address
+    /^::ffff:(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)/i,
+    // IPv6 link-local (fe80::/10) — beyond Java; not covered by isSiteLocalAddress()
+    /^fe[89ab][0-9a-f]:/i,
+    // IPv6 unique local (fc00::/7) — equivalent to Java isSiteLocalAddress() for IPv6
+    /^f[cd][0-9a-f]{2}:/i,
+];
+const isPrivateIp = (ip: string): boolean => privateRanges.some(r => r.test(ip));
 
+// Mirrors the logic in web-security-java HijackFilter.getClientIp / parseIpFromXForwardedFor.
+// Returns the rightmost public (non-private) IP from X-Forwarded-For, which is
+// set by trusted infrastructure (CDN/WAF/ALB) and cannot be spoofed by the client.
+// Falls back to X-REAL-IP, then socket.remoteAddress when X-Forwarded-For is absent.
+const getClientIp = (req: Request): string => {
+    if (req.headers["x-forwarded-for"]) {
+        const ipStr = Array.isArray(req.headers["x-forwarded-for"])
+            ? req.headers["x-forwarded-for"].toString()
+            : req.headers["x-forwarded-for"];
+        const ips = ipStr.split(",").map(ip => ip.trim()).filter(ip => ip.length > 0);
+        if (ips.length === 0) {
+            return req.socket?.remoteAddress ?? "";
+        }
+        if (ips.length === 1) {
+            return ips[0];
+        }
+        for (let i = ips.length - 1; i >= 0; i--) {
+            if (!isPrivateIp(ips[i])) {
+                return ips[i];
+            }
+        }
+        return ips[0];
+    }
+    // Match web-security-java: fall back to X-REAL-IP before remoteAddr
+    const xRealIp = req.headers["x-real-ip"];
+    if (xRealIp) {
+        return Array.isArray(xRealIp) ? xRealIp[0] : xRealIp;
+    }
+    return req.socket?.remoteAddress ?? "";
 };
 
 function buildRedirectUri(options: AuthOptions): string {

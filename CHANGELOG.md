@@ -9,8 +9,7 @@
   `.client.signature`, the middleware now writes and validates a new `.client.signatureV2`
   computed as `SHA1(User-Agent + COOKIE_SECRET)` — deliberately excluding the client IP,
   which is unstable across CHS services behind different infrastructure paths and was causing
-  false hijack detections on cross-service journeys (e.g. `identity-verification-web` →
-  `acsp-manage-users-web`).
+  false hijack detections on cross-service journeys.
 
 ### Changed
 

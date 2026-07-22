@@ -1,4 +1,4 @@
-import { Response } from "express";
+import { Request, Response } from "express";
 import crypto from "crypto";
 import sinon from "sinon";
 import { instance, mock, when } from "ts-mockito";
@@ -320,6 +320,92 @@ describe("IP extraction from X-Forwarded-For", () => {
         authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
         assert(mockNext.calledOnce);
         assert(redirectStub.notCalled);
+    });
+
+});
+
+describe("Dual-signature migration", () => {
+
+    const mockUserId = "sA==";
+
+    let redirectStub: sinon.SinonStub;
+    let opts: AuthOptions;
+    let mockResponse: Response;
+    let mockNext: sinon.SinonStub;
+
+    // V2 = SHA1(userAgent + COOKIE_SECRET), no IP. Here both are unset, so the input is "undefined".
+    const v2Signature = (): string =>
+        crypto.createHash("sha1").update("undefined", "utf8").digest("hex");
+
+    // V1 = SHA1(userAgent + ip + COOKIE_SECRET); input here is `${ip}undefined`.
+    const signatureForIp = (ip: string): string =>
+        crypto.createHash("sha1").update(`${ip}undefined`, "utf8").digest("hex");
+
+    // Builds a signed-in request seeded with the given session signature data.
+    const buildSignedInRequest = (data: Record<string, string>): Request => {
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data });
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        return mockRequest;
+    };
+
+    beforeEach(() => {
+        redirectStub = sinon.stub();
+        opts = { returnUrl: "origin", chsWebUrl: "accounts" };
+        mockResponse = generateResponse();
+        mockResponse.redirect = redirectStub;
+        mockNext = sinon.stub();
+    });
+
+    it("validates against V2 first and calls next when the V2 signature matches", () => {
+        const mockRequest = buildSignedInRequest({ [SessionKey.ClientSigV2]: v2Signature() });
+
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("ignores IP changes when a matching V2 signature is present (fixes cross-service false hijack)", () => {
+        const mockRequest = buildSignedInRequest({
+            [SessionKey.ClientSig]: signatureForIp("9.9.9.9"),
+            [SessionKey.ClientSigV2]: v2Signature()
+        });
+        (mockRequest.headers as Record<string, string>)["x-forwarded-for"] = "1.2.3.4";
+
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("redirects to sign in when a V2 signature is present but does not match", () => {
+        const mockRequest = buildSignedInRequest({ [SessionKey.ClientSigV2]: "does-not-match" });
+
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnce);
+        assert(mockNext.notCalled);
+        // both signatures cleared on a possible hijack
+        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSig]);
+        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSigV2]);
+    });
+
+    it("falls back to legacy V1 validation and backfills V2 when only V1 is present", () => {
+        const mockRequest = buildSignedInRequest({ [SessionKey.ClientSig]: signatureForIp("") });
+
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+        assert.strictEqual(mockRequest.session!.data[SessionKey.ClientSigV2], v2Signature());
+    });
+
+    it("writes both V1 and V2 signatures on first sign-in when neither is present", () => {
+        const mockRequest = buildSignedInRequest({ [SessionKey.ClientSig]: "", [SessionKey.ClientSigV2]: "" });
+
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+        assert.strictEqual(mockRequest.session!.data[SessionKey.ClientSig], signatureForIp(""));
+        assert.strictEqual(mockRequest.session!.data[SessionKey.ClientSigV2], v2Signature());
     });
 
 });

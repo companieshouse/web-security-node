@@ -51,46 +51,9 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         return res.redirect(redirectURI);
     }
 
-    if (signedIn) {
-        if (clientSignatureV2.length) {
-            // V2 exists, so only check that
-            if (computedSignatureV2 !== clientSignatureV2) {
-                // possible hijack
-                logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
-                logger.info(`${appName} - signature_version: v2`);
-                logger.info(`${appName} - validation_result: mismatch`);
-                logger.info(`${appName} - clientSignatureV2: ${clientSignatureV2}`);
-                logger.info(`${appName} - computedSignatureV2: ${computedSignatureV2}`);
-                logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
-                clearClientSignatures(req);
-                return res.redirect(redirectURI);
-            }
-            logger.debug(`${appName} - signature_version: v2, validation_result: matched`);
-        } else if (clientSignature.length) {
-            // no V2 yet, fall back to the old IP-based signature
-            if (computedSignature !== clientSignature) {
-                // possible hijack
-                logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
-                logger.info(`${appName} - signature_version: v1`);
-                logger.info(`${appName} - validation_result: mismatch`);
-                logger.info(`${appName} - clientSignature: ${clientSignature}`);
-                logger.info(`${appName} - computedSignature: ${computedSignature}`);
-                logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
-                clearClientSignatures(req);
-                return res.redirect(redirectURI);
-            }
-            // old signature is fine, backfill V2 for next time
-            logger.debug(`${appName} - signature_version: v1, validation_result: matched, fallback_used: true`);
-            // @ts-ignore
-            req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
-        } else {
-            // first sign-in, store both
-            logger.debug(`${appName} - no client signatures present, writing v1 and v2`);
-            // @ts-ignore
-            req.session.data[`${SessionKey.ClientSig}`] = computedSignature;
-            // @ts-ignore
-            req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
-        }
+    if (validateClientSignatures(req, signedIn, clientSignature, clientSignatureV2, computedSignature, computedSignatureV2)) {
+        // possible hijack
+        return res.redirect(redirectURI);
     }
 
     if (requestScopeAndPermissions && additionalScopeIsRequired(requestScopeAndPermissions, userProfile, userId)) {
@@ -154,6 +117,67 @@ const computeV2SignatureFromRequest = (req: Request): string => {
         .createHash("sha1")
         .update(hashTarget, "utf8")
         .digest("hex");
+};
+
+// Returns true when a possible hijack is detected
+// (caller should redirect). Prefers V2, falls back to legacy V1 and backfills V2,
+// or writes both on first sign-in.
+const validateClientSignatures = (
+    req: Request,
+    signedIn: boolean,
+    clientSignature: string,
+    clientSignatureV2: string,
+    computedSignature: string,
+    computedSignatureV2: string
+): boolean => {
+    if (!signedIn) {
+        return false;
+    }
+
+    const appName = LOG_MESSAGE_APP_NAME;
+
+    if (clientSignatureV2.length) {
+        // V2 exists, so only check that
+        if (computedSignatureV2 !== clientSignatureV2) {
+            logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
+            logger.info(`${appName} - signature_version: v2`);
+            logger.info(`${appName} - validation_result: mismatch`);
+            logger.info(`${appName} - clientSignatureV2: ${clientSignatureV2}`);
+            logger.info(`${appName} - computedSignatureV2: ${computedSignatureV2}`);
+            logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
+            clearClientSignatures(req);
+            return true;
+        }
+        logger.debug(`${appName} - signature_version: v2, validation_result: matched`);
+        return false;
+    }
+
+    if (clientSignature.length) {
+        // no V2 yet, fall back to the old IP-based signature
+        if (computedSignature !== clientSignature) {
+            logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
+            logger.info(`${appName} - signature_version: v1`);
+            logger.info(`${appName} - validation_result: mismatch`);
+            logger.info(`${appName} - clientSignature: ${clientSignature}`);
+            logger.info(`${appName} - computedSignature: ${computedSignature}`);
+            logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
+            clearClientSignatures(req);
+            return true;
+        }
+        // old signature is fine, backfill V2 for next time
+        logger.debug(`${appName} - signature_version: v1, validation_result: matched, fallback_used: true`);
+        // @ts-ignore
+        req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
+        return false;
+    }
+
+    // first sign-in, store both
+    logger.debug(`${appName} - no client signatures present, writing v1 and v2`);
+    // @ts-ignore
+    req.session.data[`${SessionKey.ClientSig}`] = computedSignature;
+    // @ts-ignore
+    req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
+    return false;
 };
 
 // Wipe both signatures on a possible hijack so the next request writes fresh ones.

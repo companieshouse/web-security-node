@@ -43,27 +43,17 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
     const userId: string | undefined = userProfile?.id;
     const hijackFilter: string = req.session?.data[SessionKey.Hijacked] ?? "0";
     const clientSignature: string = req.session?.data[SessionKey.ClientSig] ?? "";
+    const clientSignatureV2: string = req.session?.data[SessionKey.ClientSigV2] ?? "";
     const computedSignature: string = computeSignatureFromRequest(req);
+    const computedSignatureV2: string = computeV2SignatureFromRequest(req);
 
     if (parseInt(hijackFilter, 10) === 1) {
         return res.redirect(redirectURI);
     }
 
-    if (signedIn) {
-        if (computedSignature !== clientSignature) {
-            if (!clientSignature.length) {
-                // @ts-ignore
-                req.session.data[`${SessionKey.ClientSig}`] = computedSignature;
-            } else {
-                // possible hijack detected
-                logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
-                logger.info(`${appName} - clientSignature: ${clientSignature}`);
-                logger.info(`${appName} - computedSignature: ${computedSignature}`);
-                logger.info(`${appName} - session_cookie_id": ${req.session?.data[SessionKey.Id]}`);
-                req.session.data = {};
-                return res.redirect(redirectURI);
-            }
-        }
+    if (validateClientSignatures(req, signedIn, clientSignature, clientSignatureV2, computedSignature, computedSignatureV2)) {
+        // possible hijack
+        return res.redirect(redirectURI);
     }
 
     if (requestScopeAndPermissions && additionalScopeIsRequired(requestScopeAndPermissions, userProfile, userId)) {
@@ -117,6 +107,86 @@ const computeSignatureFromRequest = (req: Request): string => {
         .update(hashTarget, "utf8")
         .digest("hex");
 };
+
+// V2 leaves out the client IP, which isn't stable across services and was
+// triggering false hijack detections.
+const computeV2SignatureFromRequest = (req: Request): string => {
+    const userAgent = req.headers["user-agent"] ?? "";
+    const hashTarget = `${userAgent}${process.env?.COOKIE_SECRET}`;
+    return crypto
+        .createHash("sha1")
+        .update(hashTarget, "utf8")
+        .digest("hex");
+};
+
+// Returns true when a possible hijack is detected
+// (caller should redirect). Prefers V2, falls back to legacy V1 and backfills V2,
+// or writes both on first sign-in.
+const validateClientSignatures = (
+    req: Request,
+    signedIn: boolean,
+    clientSignature: string,
+    clientSignatureV2: string,
+    computedSignature: string,
+    computedSignatureV2: string
+): boolean => {
+    if (!signedIn) {
+        return false;
+    }
+
+    const appName = LOG_MESSAGE_APP_NAME;
+
+    if (clientSignatureV2.length) {
+        // V2 exists, so only check that
+        if (computedSignatureV2 !== clientSignatureV2) {
+            logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
+            logger.info(`${appName} - signature_version: v2`);
+            logger.info(`${appName} - validation_result: mismatch`);
+            logger.info(`${appName} - clientSignatureV2: ${presentOrAbsent(clientSignatureV2)}`);
+            logger.info(`${appName} - computedSignatureV2: ${presentOrAbsent(computedSignatureV2)}`);
+            logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
+            clearSessionData(req);
+            return true;
+        }
+        logger.debug(`${appName} - signature_version: v2, validation_result: matched`);
+        return false;
+    }
+
+    if (clientSignature.length) {
+        // no V2 yet, fall back to the old IP-based signature
+        if (computedSignature !== clientSignature) {
+            logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
+            logger.info(`${appName} - signature_version: v1`);
+            logger.info(`${appName} - validation_result: mismatch`);
+            logger.info(`${appName} - clientSignature: ${presentOrAbsent(clientSignature)}`);
+            logger.info(`${appName} - computedSignature: ${presentOrAbsent(computedSignature)}`);
+            logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
+            clearSessionData(req);
+            return true;
+        }
+        // old signature is fine, backfill V2 for next time
+        logger.debug(`${appName} - signature_version: v1, validation_result: matched, fallback_used: true`);
+        // @ts-ignore
+        req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
+        return false;
+    }
+
+    // first sign-in, store both
+    logger.debug(`${appName} - no client signatures present, writing v1 and v2`);
+    // @ts-ignore
+    req.session.data[`${SessionKey.ClientSig}`] = computedSignature;
+    // @ts-ignore
+    req.session.data[`${SessionKey.ClientSigV2}`] = computedSignatureV2;
+    return false;
+};
+
+// Wipe session data on a possible hijack so the next request writes fresh ones.
+const clearSessionData = (req: Request): void => {
+    req.session!.data = {};
+};
+
+// Logs whether a signature is set, without leaking the actual value.
+const presentOrAbsent = (value: string): string => (value ? "present" : "absent");
 
 // Equivalent to Java's InetAddress.isSiteLocalAddress() + the explicit startsWith("127.") check
 // in web-security-java HijackFilter.parseIpFromXForwardedFor.

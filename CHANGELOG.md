@@ -1,6 +1,27 @@
 # Changelog
 
-## [4.4.x] - 2026-07-01
+
+## [4.4.X] - 2026-07-22
+
+### Added
+
+- **SIV-1244**: Dual-signature session-hijack detection. In addition to the legacy IP-based
+  `.client.signature`, the middleware now writes and validates a new `.client.signatureV2`
+  computed as `SHA1(User-Agent + COOKIE_SECRET)` — deliberately excluding the client IP,
+  which is unstable across CHS services behind different infrastructure paths and was causing
+  false hijack detections on cross-service journeys.
+
+### Changed
+
+- Session validation now prefers `.client.signatureV2` when present; otherwise it validates
+  the legacy `.client.signature` and opportunistically backfills `.client.signatureV2` for
+  future requests. On first sign-in both signatures are written. On a possible hijack both
+  signatures are cleared. Structured logs distinguish `signature_version` and `fallback_used`.
+- The legacy IP-based `.client.signature` is retained unchanged so services still running
+  older library versions continue to work during the (uncoordinated) rollout.
+
+
+## [4.4.23] - 2026-07-01
 
 ### Security
 

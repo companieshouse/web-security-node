@@ -142,8 +142,8 @@ const validateClientSignatures = (
             logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
             logger.info(`${appName} - signature_version: v2`);
             logger.info(`${appName} - validation_result: mismatch`);
-            logger.info(`${appName} - clientSignatureV2: ${presence(clientSignatureV2)}`);
-            logger.info(`${appName} - computedSignatureV2: ${presence(computedSignatureV2)}`);
+            logger.info(`${appName} - clientSignatureV2: ${presentOrAbsent(clientSignatureV2)}`);
+            logger.info(`${appName} - computedSignatureV2: ${presentOrAbsent(computedSignatureV2)}`);
             logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
             clearSessionData(req);
             return true;
@@ -158,8 +158,8 @@ const validateClientSignatures = (
             logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
             logger.info(`${appName} - signature_version: v1`);
             logger.info(`${appName} - validation_result: mismatch`);
-            logger.info(`${appName} - clientSignature: ${presence(clientSignature)}`);
-            logger.info(`${appName} - computedSignature: ${presence(computedSignature)}`);
+            logger.info(`${appName} - clientSignature: ${presentOrAbsent(clientSignature)}`);
+            logger.info(`${appName} - computedSignature: ${presentOrAbsent(computedSignature)}`);
             logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
             clearSessionData(req);
             return true;
@@ -186,7 +186,7 @@ const clearSessionData = (req: Request): void => {
 };
 
 // Logs whether a signature is set, without leaking the actual value.
-const presence = (value: string): string => (value ? "present" : "absent");
+const presentOrAbsent = (value: string): string => (value ? "present" : "absent");
 
 // Equivalent to Java's InetAddress.isSiteLocalAddress() + the explicit startsWith("127.") check
 // in web-security-java HijackFilter.parseIpFromXForwardedFor.

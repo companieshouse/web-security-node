@@ -142,10 +142,10 @@ const validateClientSignatures = (
             logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
             logger.info(`${appName} - signature_version: v2`);
             logger.info(`${appName} - validation_result: mismatch`);
-            logger.info(`${appName} - clientSignatureV2: ${clientSignatureV2}`);
-            logger.info(`${appName} - computedSignatureV2: ${computedSignatureV2}`);
+            logger.info(`${appName} - clientSignatureV2: ${clientSignatureV2 ? "present" : "absent"}`);
+            logger.info(`${appName} - computedSignatureV2: ${computedSignatureV2 ? "present" : "absent"}`);
             logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
-            clearClientSignatures(req);
+            clearSessionData(req);
             return true;
         }
         logger.debug(`${appName} - signature_version: v2, validation_result: matched`);
@@ -158,10 +158,10 @@ const validateClientSignatures = (
             logger.info(`${appName} - possible hijack detected, forcing redirect to sign in page`);
             logger.info(`${appName} - signature_version: v1`);
             logger.info(`${appName} - validation_result: mismatch`);
-            logger.info(`${appName} - clientSignature: ${clientSignature}`);
-            logger.info(`${appName} - computedSignature: ${computedSignature}`);
+            logger.info(`${appName} - clientSignature: ${clientSignature ? "present" : "absent"}`);
+            logger.info(`${appName} - computedSignature: ${computedSignature ? "present" : "absent"}`);
             logger.info(`${appName} - session_cookie_id: ${req.session?.data[SessionKey.Id]}`);
-            clearClientSignatures(req);
+            clearSessionData(req);
             return true;
         }
         // old signature is fine, backfill V2 for next time
@@ -181,7 +181,7 @@ const validateClientSignatures = (
 };
 
 // Wipe both signatures on a possible hijack so the next request writes fresh ones.
-const clearClientSignatures = (req: Request): void => {
+const clearSessionData = (req: Request): void => {
     req.session!.data = {};
 };
 

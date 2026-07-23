@@ -350,6 +350,15 @@ describe("Dual-signature migration", () => {
         return mockRequest;
     };
 
+    // Asserts that a possible-hijack was detected: redirect fired, next not called,
+    // and both signatures wiped from the session.
+    const assertHijackRedirectAndClear = (mockRequest: Request): void => {
+        assert(redirectStub.calledOnce);
+        assert(mockNext.notCalled);
+        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSig]);
+        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSigV2]);
+    };
+
     beforeEach(() => {
         redirectStub = sinon.stub();
         opts = { returnUrl: "origin", chsWebUrl: "accounts" };
@@ -380,13 +389,14 @@ describe("Dual-signature migration", () => {
 
     it("redirects to sign in when a V2 signature is present but does not match", () => {
         const mockRequest = buildSignedInRequest({ [SessionKey.ClientSigV2]: "does-not-match" });
-
         authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
-        assert(redirectStub.calledOnce);
-        assert(mockNext.notCalled);
-        // both signatures cleared on a possible hijack
-        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSig]);
-        assert.isUndefined(mockRequest.session!.data[SessionKey.ClientSigV2]);
+        assertHijackRedirectAndClear(mockRequest);
+    });
+
+    it("redirects to sign in when only V1 is present and does not match", () => {
+        const mockRequest = buildSignedInRequest({ [SessionKey.ClientSig]: "does-not-match" });
+        authMiddlewareHelper(opts)(mockRequest, mockResponse, mockNext);
+        assertHijackRedirectAndClear(mockRequest);
     });
 
     it("falls back to legacy V1 validation and backfills V2 when only V1 is present", () => {

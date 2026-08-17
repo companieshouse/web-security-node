@@ -23,7 +23,7 @@
     "sonarqube": "branch=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD); if [[ $branch == \"HEAD\" ]]; then echo $branch && npm run sonarqube-base-branch; else echo $branch && npm run sonarqube-pull-request; fi;"
   },
   "dependencies": {
-    "@companieshouse/node-session-handler": "~5.2.17",
+    "@companieshouse/node-session-handler": "~5.2.18",
     "@companieshouse/structured-logging-node": "~2.0.15",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",

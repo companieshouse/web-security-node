@@ -18,7 +18,7 @@ import {
     CsrfTokensMismatchError,
     MissingCsrfSessionToken,
     CsrfProtectionMiddleware,
-} from "../../src/csrf-protection";
+} from "../../src";
 
 describe("csrf-protection/middleware", () => {
 
@@ -385,6 +385,43 @@ describe("csrf-protection/middleware", () => {
 
             assert(nextCalls.length === 1, "next has been called once");
             assert(typeof nextCalls[0] === "undefined", "next has been called with no args");
+
+            sinon.verify();
+        });
+
+        it("errors when POST with no session cookie and errorWhenNoSessionCookie is not specified (secure default)", () => {
+            const sessionMock = mock(Session);
+            const mockRequest = generateRequest(instance(sessionMock), undefined, undefined, "POST");
+            mockRequest.cookies = {};
+
+            when(sessionMock.data).thenReturn({
+                [SessionKey.Expires]: 1223123454
+            });
+
+            // Array of calls to next
+            let nextCalls: any[] = [];
+
+            // stubbed next which adds the call args to next to the nextCalls array
+            const nextStub = (err?: any) => {
+                console.warn(`Called with ${err}`);
+
+                nextCalls = [
+                    ...nextCalls,
+                    err
+                ];
+            };
+
+            // @ts-ignore
+            opts.sessionStore.expects("store").never();
+
+            CsrfProtectionMiddleware({
+                ...(opts),
+                createWhenCsrfTokenAbsent: true,
+                sessionStore: sessionStore
+            })(mockRequest, mockResponse, nextStub);
+
+            assert(nextCalls.length === 1, "next has been called once");
+            assert(nextCalls[0] instanceof SessionUnsetError, "next Called with CsrfError");
 
             sinon.verify();
         });

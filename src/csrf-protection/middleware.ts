@@ -114,7 +114,7 @@ const csrfFilter = (options: CsrfOptions): RequestHandler => {
             const parameterName = options.parameterName || DEFAULT_CSRF_TOKEN_PARAMETER_NAME;
             const csrfTokenFactory = options.csrfTokenFactory || defaultCsrfTokenFactory;
             const cookieName = options.sessionCookieName || DEFAULT_CHS_SESSION_COOKIE_NAME;
-            const errorWhenNoSessionCookie = options.errorWhenNoSessionCookie || false;
+            const errorWhenNoSessionCookie = options.errorWhenNoSessionCookie !== false;
 
             const hasSessionCookie = typeof req.cookies[cookieName] !== "undefined";
 

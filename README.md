@@ -248,7 +248,10 @@ Provides configuration to the middleware.
   do nothing and call next handler without an error (assuming this will be
   handled separately). This likely will be handled in a different handler
   therefore should not expect there to be a CSRF token
-  to validate the request against. Defaults to `false`.
+  to validate the request against. Defaults to `true`. Only set this to
+  `false` if the absence of a session cookie is genuinely expected and
+  handled by another layer, as `false` allows a mutable request to bypass
+  CSRF validation entirely.
 
 #### `CsrfProtectionMiddleware` function
 

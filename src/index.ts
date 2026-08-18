@@ -18,6 +18,5 @@ export const authMiddleware = (options: AuthOptions): RequestHandler => (
     res: Response,
     next: NextFunction
 ) => {
-
     return authMiddlewareHelper(options)(req, res, next);
 };

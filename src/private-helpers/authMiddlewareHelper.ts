@@ -72,7 +72,7 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         return res.redirect(redirectURI);
     }
 
-    if (options.companyNumber && !isAuthorisedForCompany(options.companyNumber, signInInfo)) {
+    if (shouldCheckCompanyAuthorisation(options, signInInfo)) {
         logger.info(`${appName} - handler: userId=${userId}, Not Authorised for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
@@ -96,6 +96,10 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
 
 function shouldForceCompanyAuth(options: AuthOptions): boolean {
     return options.companyNumber !== undefined && options.companyForceAuth === true;
+}
+
+function shouldCheckCompanyAuthorisation(options: AuthOptions, signInInfo: ISignInInfo): boolean {
+    return options.companyNumber !== undefined && !isAuthorisedForCompany(options.companyNumber, signInInfo);
 }
 
 function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo): boolean {

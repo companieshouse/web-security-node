@@ -65,6 +65,12 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         logger.info(`${appName} - handler: userId=${userId}, Not signed in... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
+    
+    if (options.companyNumber && options.companyForceAuth === true) {
+        redirectURI = redirectURI.concat(`&company_force_auth=true`);
+        logger.info(`${appName} - handler: userId=${userId}, companyForceAuth=true, for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
+        return res.redirect(redirectURI);
+    }
 
     if (options.companyNumber && !isAuthorisedForCompany(options.companyNumber, signInInfo)) {
         logger.info(`${appName} - handler: userId=${userId}, Not Authorised for ${options.companyNumber}... Redirecting to: ${redirectURI}`);

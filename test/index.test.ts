@@ -156,4 +156,43 @@ describe("Authentication Middleware with company number", () => {
         assert(mockNext.notCalled);
     });
 
+    it("Should redirect with company_force_auth=true when companyForceAuth is true when the user is authenticated for company", () => {
+        const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678&company_force_auth=true";
+
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo))
+            .thenReturn(generateSignInInfoAuthedForCompany(mockUserId, 1, "12345678"));
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
+        assert(mockNext.notCalled);
+    });
+
+    it("Should redirect with company_force_auth=true when companyForceAuth is true when the user is not authenticated for company", () => {
+        const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678&company_force_auth=true";
+
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
+        assert(mockNext.notCalled);
+    });        
+
 });

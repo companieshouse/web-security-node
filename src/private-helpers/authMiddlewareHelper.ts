@@ -65,14 +65,13 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         logger.info(`${appName} - handler: userId=${userId}, Not signed in... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
-    
-    if (shouldForceCompanyAuth(options)) {
-        redirectURI = redirectURI.concat(`&company_force_auth=true`);
-        logger.info(`${appName} - handler: userId=${userId}, companyForceAuth=true, for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
-        return res.redirect(redirectURI);
-    }
 
-    if (shouldCheckCompanyAuthorisation(options, signInInfo)) {
+    if(options.companyNumber && options.companyForceAuth){
+        if(!hasValidUpgradedCompanyAuth(userProfile)){
+            logger.info(`${appName} - handler: userId=${userId}, No Valid Upgraded Company Auth for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
+            return res.redirect(redirectURI);
+        }
+    } else if (options.companyNumber && !isAuthorisedForCompany(options.companyNumber, signInInfo)) {
         logger.info(`${appName} - handler: userId=${userId}, Not Authorised for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
@@ -94,12 +93,15 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
     return next();
 };
 
-function shouldForceCompanyAuth(options: AuthOptions): boolean {
-    return options.companyNumber !== undefined && options.companyForceAuth === true;
-}
+export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean => {
+    const tokenPermissions = userProfile[UserProfileKeys.TokenPermissions] as Record<string, string> | undefined;
+    const companyUpgradedValidUntil = Number(tokenPermissions?.["company_upgraded_auth_valid_until"]);
 
-function shouldCheckCompanyAuthorisation(options: AuthOptions, signInInfo: ISignInInfo): boolean {
-    return options.companyNumber !== undefined && !isAuthorisedForCompany(options.companyNumber, signInInfo);
+    if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)){
+        return false;
+    }
+    const currentTime = Math.floor(Date.now() / 1000)
+    return companyUpgradedValidUntil > currentTime;
 }
 
 function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo): boolean {
@@ -274,6 +276,9 @@ function buildRedirectUri(options: AuthOptions): string {
         uri += `&company_number=${options.companyNumber}`;
         if (options.disableSaveCompanyCheckbox === true) {
             uri += `&company_disable_add_checkbox=true`;
+        }
+        if(options.companyForceAuth === true){
+            uri += `&company_force_auth=true`;
         }
     }
     return uri;

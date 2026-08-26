@@ -1,13 +1,13 @@
 import "@companieshouse/node-session-handler";
 import { SessionKey } from "@companieshouse/node-session-handler/lib/session/keys/SessionKey";
-import { SignInInfoKeys} from "@companieshouse/node-session-handler/lib/session/keys/SignInInfoKeys";
+import { SignInInfoKeys } from "@companieshouse/node-session-handler/lib/session/keys/SignInInfoKeys";
 import { UserProfileKeys } from "@companieshouse/node-session-handler/lib/session/keys/UserProfileKeys";
 import { ISignInInfo, IUserProfile } from "@companieshouse/node-session-handler/lib/session/model/SessionInterfaces";
 import crypto from "crypto";
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import { AuthOptions } from "..";
 import { RequestScopeAndPermissions } from "./RequestScopeAndPermissions";
-import { additionalScopeIsRequired }  from "./additionalScopeIsRequired";
+import { additionalScopeIsRequired } from "./additionalScopeIsRequired";
 import { logger, LOG_MESSAGE_APP_NAME } from "./createLogger";
 
 /* tslint:disable-next-line */
@@ -29,8 +29,8 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
     let redirectURI = buildRedirectUri(options);
 
 
-    if (!req.session)  {
-        if(requestScopeAndPermissions) {
+    if (!req.session) {
+        if (requestScopeAndPermissions) {
             redirectURI = redirectURI.concat(`&additional_scope=${requestScopeAndPermissions.scope}`);
         }
         logger.debug(`${appName} - handler: Session object is missing!`);
@@ -66,12 +66,13 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         return res.redirect(redirectURI);
     }
 
-    if(options.companyNumber && options.companyForceAuth){
-        if(!hasValidUpgradedCompanyAuth(userProfile)){
-            logger.info(`${appName} - handler: userId=${userId}, No Valid Upgraded Company Auth for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
-            return res.redirect(redirectURI);
-        }
-    } else if (options.companyNumber && !isAuthorisedForCompany(options.companyNumber, signInInfo)) {
+    // If the user is signed in, but does not have a valid upgraded company auth, redirect to CHS Web to force re-authentication
+    if (shouldForceCompanyReAuth(options, userProfile)) {
+        logger.info(`${appName} - handler: userId=${userId}, No Valid Upgraded Company Auth for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
+        return res.redirect(redirectURI);
+    }
+
+    if (shouldCheckCompanyAuthorisation(options, signInInfo)) {
         logger.info(`${appName} - handler: userId=${userId}, Not Authorised for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
@@ -93,11 +94,23 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
     return next();
 };
 
+function shouldForceCompanyReAuth(options: AuthOptions, userProfile: IUserProfile): boolean {
+    return options.companyNumber !== undefined
+        && options.companyForceAuth === true
+        && !hasValidUpgradedCompanyAuth(userProfile);
+}
+
+function shouldCheckCompanyAuthorisation(options: AuthOptions, signInInfo: ISignInInfo): boolean {
+    return options.companyNumber !== undefined
+        && !options.companyForceAuth
+        && !isAuthorisedForCompany(options.companyNumber, signInInfo);
+}
+
 export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean => {
     const tokenPermissions = userProfile[UserProfileKeys.TokenPermissions] as Record<string, string> | undefined;
     const companyUpgradedValidUntil = Number(tokenPermissions?.["company_upgraded_auth_valid_until"]);
 
-    if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)){
+    if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)) {
         return false;
     }
     const currentTime = Math.floor(Date.now() / 1000)
@@ -277,7 +290,7 @@ function buildRedirectUri(options: AuthOptions): string {
         if (options.disableSaveCompanyCheckbox === true) {
             uri += `&company_disable_add_checkbox=true`;
         }
-        if(options.companyForceAuth === true){
+        if (options.companyForceAuth === true) {
             uri += `&company_force_auth=true`;
         }
     }

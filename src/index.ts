@@ -11,6 +11,7 @@ export interface AuthOptions {
   companyNumber?: string
   acspNumber?:string
   disableSaveCompanyCheckbox?: boolean
+  companyForceAuth?: boolean
 }
 
 export const authMiddleware = (options: AuthOptions): RequestHandler => (

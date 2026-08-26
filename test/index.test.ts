@@ -2,9 +2,12 @@ import { Response } from "express";
 import sinon from "sinon";
 import { assert, expect } from "chai";
 import { instance, mock, when } from "ts-mockito";
-import { Session} from "@companieshouse/node-session-handler";
+import { Session } from "@companieshouse/node-session-handler";
 import { SessionKey } from "@companieshouse/node-session-handler/lib/session/keys/SessionKey";
 import { ISignInInfo } from "@companieshouse/node-session-handler/lib/session/model/SessionInterfaces";
+import { UserProfileKeys } from "@companieshouse/node-session-handler/lib/session/keys/UserProfileKeys";
+import { hasValidUpgradedCompanyAuth } from "../src/private-helpers/authMiddlewareHelper";
+import { IUserProfile } from "@companieshouse/node-session-handler/lib/session/model/SessionInterfaces";
 import { authMiddleware, AuthOptions } from "../src";
 import {
     generateRequest,
@@ -129,14 +132,14 @@ describe("Authentication Middleware with company number", () => {
         };
         const authedSession = mock(Session);
         // @ts-ignore
-        const mockRequest = generateRequest({...instance(authedSession), data: {} });
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
 
         when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
         authMiddleware(authOptions)(mockRequest, mockResponse, mockNext);
         assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
         assert(mockNext.notCalled);
     });
-  
+
     it("Should redirect without company_disable_add_checkbox query parm when disableSaveCompanyCheckbox is false", () => {
         const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678";
 
@@ -148,7 +151,7 @@ describe("Authentication Middleware with company number", () => {
         };
         const authedSession = mock(Session);
         // @ts-ignore
-        const mockRequest = generateRequest({...instance(authedSession), data: {} });
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
 
         when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
         authMiddleware(authOptions)(mockRequest, mockResponse, mockNext);
@@ -156,4 +159,138 @@ describe("Authentication Middleware with company number", () => {
         assert(mockNext.notCalled);
     });
 
+    it("Should redirect with company_force_auth=true when companyForceAuth is true when the user is authenticated for company", () => {
+        const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678&company_force_auth=true";
+
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo))
+            .thenReturn(generateSignInInfoAuthedForCompany(mockUserId, 1, "12345678"));
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
+        assert(mockNext.notCalled);
+    });
+
+    it("Should redirect with company_force_auth=true when companyForceAuth is true when the user is not authenticated for company", () => {
+        const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678&company_force_auth=true";
+
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(generateSignInInfo(mockUserId, 1));
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
+        assert(mockNext.notCalled);
+    });
+
+    it("Should call next when companyForceAuth is true and upgraded company auth is still valid", () => {
+        const futureTimestamp = Math.floor(Date.now() / 1000) + 600;
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        const signInInfo = generateSignInInfoAuthedForCompany(mockUserId, 1, "12345678");
+        signInInfo.user_profile![UserProfileKeys.TokenPermissions] = {
+            "company_upgraded_auth_valid_until": String(futureTimestamp)
+        };
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(signInInfo);
+
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(mockNext.calledOnce);
+        assert(redirectStub.notCalled);
+    });
+
+    it("Should redirect when companyForceAuth is true and upgraded company auth has expired", () => {
+        const pastTimestamp = Math.floor(Date.now() / 1000) - 600;
+        const expectedAuthReturnUrl = "accounts/signin?return_to=origin&company_number=12345678&company_force_auth=true";
+        const forceAuthOptions = {
+            returnUrl: "origin",
+            chsWebUrl: "accounts",
+            companyNumber: "12345678",
+            companyForceAuth: true
+        };
+        const authedSession = mock(Session);
+        // @ts-ignore
+        const mockRequest = generateRequest({ ...instance(authedSession), data: {} });
+
+        const signInInfo = generateSignInInfoAuthedForCompany(mockUserId, 1, "12345678");
+        signInInfo.user_profile![UserProfileKeys.TokenPermissions] = {
+            "company_upgraded_auth_valid_until": String(pastTimestamp)
+        };
+        when(authedSession.get<ISignInInfo>(SessionKey.SignInInfo)).thenReturn(signInInfo);
+
+        authMiddleware(forceAuthOptions)(mockRequest, mockResponse, mockNext);
+        assert(redirectStub.calledOnceWith(expectedAuthReturnUrl));
+        assert(mockNext.notCalled);
+    });
+
 });
+
+describe("hasValidUpgradedCompanyAuth", () => {
+
+    it("returns true when company_upgraded_auth_valid_until is in the future", () => {
+        const futureTimestamp = Math.floor(Date.now() / 1000) + 600;
+        const userProfile: IUserProfile = {
+            [UserProfileKeys.TokenPermissions]: {
+                "company_upgraded_auth_valid_until": String(futureTimestamp)
+            }
+        };
+        assert(hasValidUpgradedCompanyAuth(userProfile) === true);
+    });
+
+    it("returns false when company_upgraded_auth_valid_until is in the past", () => {
+        const pastTimestamp = Math.floor(Date.now() / 1000) - 600;
+        const userProfile: IUserProfile = {
+            [UserProfileKeys.TokenPermissions]: {
+                "company_upgraded_auth_valid_until": String(pastTimestamp)
+            }
+        };
+        assert(hasValidUpgradedCompanyAuth(userProfile) === false);
+    });
+
+    it("returns false when company_upgraded_auth_valid_until is missing", () => {
+        const userProfile: IUserProfile = {
+            [UserProfileKeys.TokenPermissions]: {}
+        };
+        assert(hasValidUpgradedCompanyAuth(userProfile) === false);
+    });
+
+    it("returns false when token permissions are entirely absent", () => {
+        const userProfile: IUserProfile = {};
+        assert(hasValidUpgradedCompanyAuth(userProfile) === false);
+    });
+
+    it("returns false when company_upgraded_auth_valid_until is not a valid number", () => {
+        const userProfile: IUserProfile = {
+            [UserProfileKeys.TokenPermissions]: {
+                "company_upgraded_auth_valid_until": "not-a-number"
+            }
+        };
+        assert(hasValidUpgradedCompanyAuth(userProfile) === false);
+    });
+
+});
+
+
+

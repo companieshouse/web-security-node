@@ -113,9 +113,9 @@ export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean 
     if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)) {
         return false;
     }
-    const currentTime = Math.floor(Date.now() / 1000)
+    const currentTime = Math.floor(Date.now() / 1000);
     return companyUpgradedValidUntil > currentTime;
-}
+};
 
 function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo): boolean {
     const authorisedCompany = signInInfo[SignInInfoKeys.CompanyNumber];

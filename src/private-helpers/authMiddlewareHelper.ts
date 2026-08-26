@@ -111,7 +111,7 @@ export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean 
     const companyUpgradedValidUntil = Number(tokenPermissions?.["company_upgraded_auth_valid_until"]);
 
     if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)) {
-        return false
+        return false;
     }
     const currentTime = Math.floor(Date.now() / 1000);
     return companyUpgradedValidUntil > currentTime;

@@ -10,6 +10,8 @@ import { RequestScopeAndPermissions } from "./RequestScopeAndPermissions";
 import { additionalScopeIsRequired } from "./additionalScopeIsRequired";
 import { logger, LOG_MESSAGE_APP_NAME } from "./createLogger";
 
+export const COMPANY_UPGRADED_AUTH_VALID_UNTIL = "company_upgraded_auth_valid_until";
+
 /* tslint:disable-next-line */
 export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermissions?: RequestScopeAndPermissions): RequestHandler => (
     req: Request,
@@ -66,8 +68,9 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
         return res.redirect(redirectURI);
     }
 
-    // If the user is signed in, but does not have a valid upgraded company auth, redirect to CHS Web to force re-authentication
-    if (shouldForceCompanyReAuth(options, userProfile)) {
+    // If the user is signed in, but does not have a valid upgraded company auth for this
+    // company, redirect to CHS Web to force re-authentication
+    if (shouldForceCompanyReAuth(options, signInInfo, userProfile)) {
         logger.info(`${appName} - handler: userId=${userId}, No Valid Upgraded Company Auth for ${options.companyNumber}... Redirecting to: ${redirectURI}`);
         return res.redirect(redirectURI);
     }
@@ -94,11 +97,21 @@ export const authMiddlewareHelper = (options: AuthOptions, requestScopeAndPermis
     return next();
 };
 
-function shouldForceCompanyReAuth(options: AuthOptions, userProfile: IUserProfile): boolean {
+function shouldForceCompanyReAuth(options: AuthOptions, signInInfo: ISignInInfo, userProfile: IUserProfile): boolean {
     return options.companyNumber !== undefined
         && options.companyForceAuth === true
-        && !hasValidUpgradedCompanyAuth(userProfile);
+        && !hasValidUpgradedCompanyAuthForCompany(options.companyNumber, signInInfo, userProfile);
 }
+
+// The upgraded auth timestamp isn't company scoped, so only honour it when the session is authorised for this company.
+export const hasValidUpgradedCompanyAuthForCompany = (
+    companyNumber: string,
+    signInInfo: ISignInInfo,
+    userProfile: IUserProfile
+): boolean => {
+    return hasValidUpgradedCompanyAuth(userProfile)
+        && isAuthorisedForCompany(companyNumber, signInInfo);
+};
 
 function shouldCheckCompanyAuthorisation(options: AuthOptions, signInInfo: ISignInInfo): boolean {
     return options.companyNumber !== undefined
@@ -108,7 +121,7 @@ function shouldCheckCompanyAuthorisation(options: AuthOptions, signInInfo: ISign
 
 export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean => {
     const tokenPermissions = userProfile[UserProfileKeys.TokenPermissions] as Record<string, string> | undefined;
-    const companyUpgradedValidUntil = Number(tokenPermissions?.["company_upgraded_auth_valid_until"]);
+    const companyUpgradedValidUntil = Number(tokenPermissions?.[COMPANY_UPGRADED_AUTH_VALID_UNTIL]);
 
     if (!companyUpgradedValidUntil || isNaN(companyUpgradedValidUntil)) {
         return false;
@@ -117,7 +130,7 @@ export const hasValidUpgradedCompanyAuth = (userProfile: IUserProfile): boolean 
     return companyUpgradedValidUntil > currentTime;
 };
 
-function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo): boolean {
+export function isAuthorisedForCompany(companyNumber: string, signInInfo: ISignInInfo): boolean {
     const authorisedCompany = signInInfo[SignInInfoKeys.CompanyNumber];
     if (!authorisedCompany) {
         return false;

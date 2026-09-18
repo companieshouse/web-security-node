@@ -25,6 +25,7 @@
   "dependencies": {
     "@companieshouse/node-session-handler": "~5.2.18",
     "@companieshouse/structured-logging-node": "~2.0.15",
+    "adm-zip": "^0.6.1",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",
     "uuid": "^11.0.0"
@@ -44,7 +45,7 @@
     "mocha": "^11.7.6",
     "nyc": "^18.0.0",
     "sinon": "^21.0.3",
-    "sonarqube-scanner": "^5.0.0",
+    "sonarqube-scanner": "^3.0.1",
     "ts-mockito": "^2.5.0",
     "ts-node": "^10.8.2",
     "tsconfig-paths": "^4.2.0",

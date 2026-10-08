@@ -17,13 +17,10 @@
     "prepublishOnly": "[ ! -d node_modules ] && npm install; tsc",
     "postpublish": "rm -rf lib",
     "test:coverage": "nyc --check-coverage --reporter=text-summary npm run test",
-    "coverage:report": "nyc --reporter=lcov --reporter=text npm run test",
-    "sonarqube-base-branch": "sonar-scanner",
-    "sonarqube-pull-request": "sonar-scanner -D sonar.pullrequest.base=master",
-    "sonarqube": "branch=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD); if [[ $branch == \"HEAD\" ]]; then echo $branch && npm run sonarqube-base-branch; else echo $branch && npm run sonarqube-pull-request; fi;"
+    "coverage:report": "nyc --reporter=lcov --reporter=text npm run test"
   },
   "dependencies": {
-    "@companieshouse/node-session-handler": "~5.2.19",
+    "@companieshouse/node-session-handler": "~5.2.21",
     "@companieshouse/structured-logging-node": "~2.0.15",
     "crypto": "^1.0.1",
     "express-async-handler": "^1.2.0",
@@ -44,7 +41,6 @@
     "mocha": "^11.7.6",
     "nyc": "^18.0.0",
     "sinon": "^21.0.3",
-    "sonarqube-scanner": "^5.0.0",
     "ts-mockito": "^2.5.0",
     "ts-node": "^10.8.2",
     "tsconfig-paths": "^4.2.0",
@@ -53,12 +49,12 @@
   "overrides": {
     "adm-zip": "^0.6.1",
     "@opentelemetry/propagator-jaeger": "^2.9.0",
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.12",
     "browserslist": "^4.28.9",
     "diff": "^8.0.3",
     "glob": "13.0.6",
     "glob-parent": "^6.0.2",
-    "js-yaml": "5.3.0",
+    "js-yaml": "5.4.3",
     "minimatch": "10.2.6",
     "protobufjs": "7.6.5",
     "qs": "^6.16.0",

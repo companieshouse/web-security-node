@@ -2,6 +2,7 @@ import { Session, SessionStore } from "@companieshouse/node-session-handler";
 import { SessionKey } from "@companieshouse/node-session-handler/lib/session/keys/SessionKey";
 import { Cookie } from "@companieshouse/node-session-handler/lib/session/model/Cookie";
 import { createLogger } from "@companieshouse/structured-logging-node";
+import { randomUUID } from "crypto";
 import { NextFunction, Request, RequestHandler, Response } from "express";
 import expressAsyncHandler from "express-async-handler";
 import {
@@ -23,7 +24,7 @@ const DEFAULT_CHS_SESSION_COOKIE_NAME = "_SID";
  * middleware configuration. Essentially generates a UUID.
  * @returns CSRF Token - i.e. a uuid
  */
-export const defaultCsrfTokenFactory = () => uuidv4();
+export const defaultCsrfTokenFactory = () => randomUUID();
 
 /**
  * Provides the options to the filtering middleware.
@@ -86,7 +87,7 @@ export const CsrfProtectionMiddleware = (csrfOptions: CsrfOptions): RequestHandl
     return expressAsyncHandler(csrfFilter(csrfOptions));
 };
 
-const csrfFilter = (options: CsrfOptions): RequestHandler => {
+const csrfFilter = (options: CsrfOptions) => {
     return async (req: Request, res: Response, next: NextFunction): Promise<any> => {
         const appName = "CH Web Security Node";
 
@@ -185,6 +186,3 @@ const csrfFilter = (options: CsrfOptions): RequestHandler => {
         }
     };
 };
-
-// Use CommonJS require for uuid to ensure compatibility
-const { v4: uuidv4 } = require("uuid");

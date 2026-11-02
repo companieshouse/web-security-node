@@ -20,7 +20,7 @@
     "coverage:report": "nyc --reporter=lcov --reporter=text npm run test"
   },
   "dependencies": {
-    "@companieshouse/node-session-handler": "~5.2.21",
+    "@companieshouse/node-session-handler": "^5.2.23",
     "@companieshouse/structured-logging-node": "~2.0.15",
     "express-async-handler": "^1.2.0"
   },

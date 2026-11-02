@@ -20,7 +20,7 @@
     "coverage:report": "nyc --reporter=lcov --reporter=text npm run test"
   },
   "dependencies": {
-    "@companieshouse/node-session-handler": "~5.2.21",
+    "@companieshouse/node-session-handler": "^5.2.23",
     "@companieshouse/structured-logging-node": "~2.0.15",
     "express-async-handler": "^1.2.0"
   },
@@ -49,10 +49,10 @@
     "brace-expansion": "5.0.12",
     "browserslist": "^4.28.9",
     "diff": "^8.0.3",
-    "glob": "13.0.6",
+    "glob": "14.0.3",
     "glob-parent": "^6.0.2",
     "js-yaml": "5.4.3",
-    "minimatch": "10.2.6",
+    "minimatch": "11.0.4",
     "protobufjs": "7.6.5",
     "qs": "^6.16.0",
     "serialize-javascript": "^7.0.5"

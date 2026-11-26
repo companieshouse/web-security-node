@@ -70,6 +70,16 @@ describe("validateReturnTo", () => {
         expect(validateReturnTo("/dash\nboard")).to.equal(null);
     });
 
+    it("rejects every raw C0, DEL and C1 control character", () => {
+        for (let code = 0; code <= 0x9f; code++) {
+            if (code <= 0x1f || code >= 0x7f) {
+                const character = String.fromCodePoint(code);
+                expect(validateReturnTo(`/a${character}b`), `relative path, code ${code}`).to.equal(null);
+                expect(validateReturnTo(`https://www.gov.uk/a${character}b`), `HTTPS URL, code ${code}`).to.equal(null);
+            }
+        }
+    });
+
     it("does not trust chs.local by default, even if it is allowlisted", () => {
         const url = "https://chs.local/dashboard";
         expect(validateReturnTo(url)).to.equal(null);

@@ -4,6 +4,7 @@ Security for web applications in node
 
 - [web-security-node](#web-security-node)
   - [Authorisation](#authorisation)
+  - [Return URL validation](#return-url-validation)
   - [Cross Site Request Forgery (CSRF) protection](#cross-site-request-forgery-csrf-protection)
     - [Installation instructions](#installation-instructions)
     - [API](#api)
@@ -27,6 +28,43 @@ With the introduction of Verification for certain business functions, the way `*
 - A user just needs to be logged in (or do a company login), in which case the `authMiddleware` function in `src/index.ts` is used
 
 When a `*-web` applications is architected, it will be decided if authorisation needs a specific OAuth scope or not. If it does, if one is not present then a new function needs to be developed in the `src/scopes-permissions` directory.
+
+## Return URL validation
+
+`validateReturnTo` accepts root-relative paths beginning with a single `/`, or
+absolute HTTPS URLs with an allowlisted hostname. Accepted values are returned
+unchanged; rejected, missing, or empty values return `null`.
+
+The default allowlist is `.gov.uk` and `.chdev.org`. A leading-dot entry matches
+subdomains only, an entry without a leading dot matches an exact hostname.
+A supplied allowlist replaces the defaults. The allowlist checks hostnames,
+not complete origins.
+
+The exact hostname `chs.local` is accepted only when `isTestEnvironment` is
+`true` and still requires HTTPS. Both the allowlist and test flag must come
+from trusted application configuration, never request parameters.
+
+Protocol-relative URLs, user information, malformed URI syntax, raw whitespace,
+backslashes, percent-encoded hostnames and invalid DNS hostnames are rejected.
+Use valid percent encoding for spaces and other characters where required.
+
+Non-empty rejected values trigger an ERROR log with a rejection reason.
+For valid but disallowed destinations, the log also includes the origin
+(scheme, hostname and optional port). Paths, queries and fragments are
+omitted to avoid exposing sensitive data. Null and empty inputs are not
+logged.
+
+```typescript
+import { validateReturnTo } from "@companieshouse/web-security-node";
+
+const safeDestination = validateReturnTo(returnTo) ?? "/";
+
+const localDestination = validateReturnTo(
+    "https://chs.local/dashboard",
+    undefined,
+    true
+);
+```
 
 ## Cross Site Request Forgery (CSRF) protection
 

@@ -4,6 +4,7 @@ import {authMiddlewareHelper} from "./private-helpers/authMiddlewareHelper";
 
 export * from "./csrf-protection";
 export * from "./scopes-permissions";
+export * from "./return-to";
 
 export interface AuthOptions {
   returnUrl: string
